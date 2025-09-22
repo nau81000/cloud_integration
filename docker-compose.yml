@@ -1,0 +1,138 @@
+services:
+  mysql:
+    image: mysql:8.3.0
+    container_name: mysql
+    volumes:
+      - ./docker/mysql:/var/lib/mysql
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    restart: always
+    networks:
+      - frontend
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password
+      MYSQL_DATABASE: client_tickets
+      MYSQL_USER: app
+      MYSQL_PASSWORD: apppass
+  redpanda:
+    command:
+      - redpanda
+      - start
+      - --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:19092
+      # Address the broker advertises to clients that connect to the Kafka API.
+      # Use the internal addresses to connect to the Redpanda brokers'
+      # from inside the same Docker network.
+      # Use the external addresses to connect to the Redpanda brokers'
+      # from outside the Docker network.
+      - --advertise-kafka-addr internal://redpanda:9092,external://localhost:19092
+      - --pandaproxy-addr internal://0.0.0.0:8082,external://0.0.0.0:18082
+      # Address the broker advertises to clients that connect to the HTTP Proxy.
+      - --advertise-pandaproxy-addr internal://redpanda:8082,external://localhost:18082
+      - --schema-registry-addr internal://0.0.0.0:8081,external://0.0.0.0:18081
+      # Redpanda brokers use the RPC API to communicate with each other internally.
+      - --rpc-addr redpanda:33145
+      - --advertise-rpc-addr redpanda:33145
+      # Mode dev-container uses well-known configuration properties for development in containers.
+      - --mode dev-container
+      # Tells Seastar (the framework Redpanda uses under the hood) to use 1 core on the system.
+      - --smp 1
+      - --default-log-level=info
+    image: docker.redpanda.com/redpandadata/redpanda:${REDPANDA_VERSION:-latest}
+    container_name: redpanda
+    volumes:
+      - ./docker/redpanda:/var/lib/redpanda/data
+    networks:
+      - frontend
+    ports:
+      - 18081:8081
+      - 18082:8082
+      - 19092:9092
+      - 19644:9644
+  console:
+    container_name: redpanda-console
+    image: docker.redpanda.com/redpandadata/console:${REDPANDA_CONSOLE_VERSION:-latest}
+    networks:
+      - frontend
+    entrypoint: /bin/sh
+    command: -c 'echo "$$CONSOLE_CONFIG_FILE" > /tmp/config.yml; /app/console'
+    environment:
+      CONFIG_FILEPATH: /tmp/config.yml
+      CONSOLE_CONFIG_FILE: |
+        kafka:
+          brokers: ["redpanda:9092"]
+        redpanda:
+          adminApi:
+            enabled: true
+            urls: ["http://redpanda:9644"]
+    ports:
+      - 8080:8080
+    depends_on:
+      - redpanda
+  producer:
+    container_name: producer
+    depends_on:
+      - mysql
+      - redpanda
+    restart: on-failure
+    networks:
+      - frontend
+    build:
+      context: .
+      dockerfile: ./Dockerfile.producer
+    environment:
+      KAFKA_SERVER: redpanda:9092
+      REDPANDA_TOPIC: client_tickets
+  connect:
+    build:
+      context: .
+      dockerfile: ./Dockerfile.kafka_connect
+    container_name: kafka-connect
+    depends_on:
+      - redpanda
+      - mysql
+    ports:
+      - "8083:8083"
+    environment:
+      CONNECT_BOOTSTRAP_SERVERS: redpanda:9092
+      CONNECT_GROUP_ID: "connect-group"
+      CONNECT_CONFIG_STORAGE_TOPIC: _connect-configs
+      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_OFFSET_STORAGE_TOPIC: _connect-offsets
+      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_STATUS_STORAGE_TOPIC: _connect-status
+      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_KEY_CONVERTER: org.apache.kafka.connect.storage.StringConverter
+      CONNECT_VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: "true"
+      CONNECT_REST_ADVERTISED_HOST_NAME: connect
+      CONNECT_PLUGIN_PATH: /etc/kafka-connect/jars
+      JAVA_HOME: /usr/lib/jvm/temurin-21-jdk
+    networks:
+      - frontend
+  spark:
+    container_name: spark
+    depends_on:
+      - mysql
+    restart: on-failure
+    networks:
+      - frontend
+    volumes:
+      - ./docker/spark:/var/tmp/spark
+    ports:
+      - "4040:4040"
+    build:
+      context: .
+      dockerfile: ./Dockerfile.spark
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_DATABASE: client_tickets
+      MYSQL_USER: app
+      MYSQL_PASSWORD: apppass
+      JSON_PATH: /var/tmp/spark/insights
+      JAVA_HOME: /opt/java/openjdk
+networks:
+  frontend:
+    # Specify driver options
+    driver: bridge

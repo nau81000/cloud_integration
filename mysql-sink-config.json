@@ -1,0 +1,15 @@
+{
+  "name": "mysql-sink-tickets",
+  "config": {
+    "connector.class": "io.confluent.connect.jdbc.JdbcSinkConnector",
+    "connection.url": "jdbc:mysql://mysql:3306/client_tickets",
+    "connection.user": "app",
+    "connection.password": "apppass",
+    "topics": "client_tickets",
+    "insert.mode": "insert",
+    "auto.create": "true",
+    "pk.mode": "record_value",
+    "pk.fields": "ticket_id",
+    "value.converter.schemas.enable": "true"
+  }
+}

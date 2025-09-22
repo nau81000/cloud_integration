@@ -1,0 +1,12 @@
+FROM python:3.12-slim
+
+WORKDIR /var/tmp/client_tickets
+
+# Copy script to be executed
+COPY ticket_producer.py .
+# Install some useful packages
+RUN apt-get update -y && apt-get install -y --no-install-recommends gcc vim && rm -rf /var/lib/apt/lists/*
+# Install required python modules
+RUN pip install --upgrade pip && pip install --no-cache-dir confluent-kafka dotenv
+
+CMD [ "python3", "ticket_producer.py"]

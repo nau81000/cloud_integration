@@ -1,0 +1,13 @@
+FROM confluentinc/cp-kafka-connect:latest
+
+RUN confluent-hub install --no-prompt confluentinc/kafka-connect-jdbc:latest
+# Move connectors at the right place
+RUN mkdir -p /etc/kafka-connect/jars && \
+    cp -r /usr/share/confluent-hub-components/confluentinc-kafka-connect-jdbc/lib/* /etc/kafka-connect/jars/
+# Download mysql java connector 
+RUN wget -qO- https://downloads.mysql.com/archives/get/p/3/file/mysql-connector-j-8.3.0.tar.gz | tar xz --strip-components=1 -C /etc/kafka-connect/jars mysql-connector-j-8.3.0/mysql-connector-j-8.3.0.jar
+# Copy connector creation script
+COPY launch_kafka_connector.sh /connector-config/
+COPY mysql-sink-config.json /connector-config/
+
+CMD ["bash", "/connector-config/launch_kafka_connector.sh"]
