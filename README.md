@@ -34,7 +34,7 @@ docker-compose down
 ### 4. Lecture des analyses de données Spark
 
 ```
-cat data/spark/insights/*.json
+cat docker/spark/insights/*.json
 ```
 
 ### 5. Vidéo explicative
