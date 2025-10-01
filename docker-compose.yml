@@ -4,17 +4,17 @@ services:
     container_name: mysql
     volumes:
       - ./docker/mysql:/var/lib/mysql
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql
     restart: always
     networks:
       - frontend
     ports:
-      - "3306:3306"
+      - "${MYSQL_PORT}:${MYSQL_PORT}"
     environment:
-      MYSQL_ROOT_PASSWORD: root_password
-      MYSQL_DATABASE: client_tickets
-      MYSQL_USER: app
-      MYSQL_PASSWORD: apppass
+      - MYSQL_ROOT_PASSWORD
+      - MYSQL_DATABASE
+      - MYSQL_USER
+      - MYSQL_PASSWORD
   redpanda:
     command:
       - redpanda
@@ -60,7 +60,7 @@ services:
       CONFIG_FILEPATH: /tmp/config.yml
       CONSOLE_CONFIG_FILE: |
         kafka:
-          brokers: ["redpanda:9092"]
+          brokers: ["${KAFKA_SERVER}"]
         redpanda:
           adminApi:
             enabled: true
@@ -79,14 +79,14 @@ services:
       - frontend
     build:
       context: .
-      dockerfile: ./Dockerfile.producer
+      dockerfile: ./dockerfiles/Dockerfile.producer
     environment:
-      KAFKA_SERVER: redpanda:9092
-      REDPANDA_TOPIC: client_tickets
+      - KAFKA_SERVER
+      - REDPANDA_TOPIC
   connect:
     build:
       context: .
-      dockerfile: ./Dockerfile.kafka_connect
+      dockerfile: ./dockerfiles/Dockerfile.kafka_connect
     container_name: kafka-connect
     depends_on:
       - redpanda
@@ -94,7 +94,7 @@ services:
     ports:
       - "8083:8083"
     environment:
-      CONNECT_BOOTSTRAP_SERVERS: redpanda:9092
+      CONNECT_BOOTSTRAP_SERVERS: ${KAFKA_SERVER}
       CONNECT_GROUP_ID: "connect-group"
       CONNECT_CONFIG_STORAGE_TOPIC: _connect-configs
       CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1
@@ -123,13 +123,13 @@ services:
       - "4040:4040"
     build:
       context: .
-      dockerfile: ./Dockerfile.spark
+      dockerfile: ./dockerfiles/Dockerfile.spark
     environment:
-      MYSQL_HOST: mysql
-      MYSQL_PORT: 3306
-      MYSQL_DATABASE: client_tickets
-      MYSQL_USER: app
-      MYSQL_PASSWORD: apppass
+      MYSQL_HOST: ${MYSQL_HOST}
+      MYSQL_PORT: ${MYSQL_PORT}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
       JSON_PATH: /var/tmp/spark/insights
       JAVA_HOME: /opt/java/openjdk
 networks:

@@ -8,6 +8,6 @@ RUN mkdir -p /var/tmp/jars
 RUN wget -qO- https://downloads.mysql.com/archives/get/p/3/file/mysql-connector-j-8.3.0.tar.gz | tar xz --strip-components=1 -C /var/tmp/jars mysql-connector-j-8.3.0/mysql-connector-j-8.3.0.jar
 
 WORKDIR /var/tmp/client_tickets
-COPY spark_analyser.py .
+COPY ./scripts/spark_analyser.py .
 
 CMD ["python3", "spark_analyser.py"]
